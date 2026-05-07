@@ -1,5 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import {
+  cacheGetJson,
+  cacheSetJson,
+  invalidateProjectContentCache,
+  projectBlogCacheKey,
+} from "@/lib/cache";
 import { generateBlogFast, generateFullBlog } from "@/lib/blog-generation";
 import { loadProject, saveProject } from "@/lib/project-store";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -59,6 +65,7 @@ export async function POST(request: NextRequest) {
       status: "generating",
       updatedAt: now,
     });
+    await invalidateProjectContentCache(parsed.data.projectId);
 
     const useQuickMode = parsed.data.quickMode ?? true;
     console.log(
@@ -116,6 +123,7 @@ export async function POST(request: NextRequest) {
     };
 
     await saveProject(finalProject);
+    await cacheSetJson(projectBlogCacheKey(parsed.data.projectId), blog, 60 * 60);
 
     return NextResponse.json({ success: true, blog, project: finalProject });
   } catch (error: unknown) {
@@ -146,12 +154,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
 
+    const cachedBlog = await cacheGetJson<unknown>(projectBlogCacheKey(projectId));
     const project = await loadProject(projectId);
-    if (!project?.generatedBlog) {
+    const blog = cachedBlog ?? project?.generatedBlog;
+    if (!project || !blog) {
       return NextResponse.json({ error: "Blog not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ blog: project.generatedBlog, project });
+    return NextResponse.json({ blog, project });
   } catch (error: unknown) {
     console.error("generate-blog GET error", error);
     return NextResponse.json({ error: "Could not load blog" }, { status: 500 });

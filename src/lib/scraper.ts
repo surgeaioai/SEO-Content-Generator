@@ -1,6 +1,8 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
+import { SEO_CACHE_TTL_SEC, cacheGetJson, cacheSetJson, seoUrlCacheKey } from "@/lib/cache";
+
 export interface HeadingData {
   h1: string[];
   h2: string[];
@@ -70,6 +72,12 @@ async function scrapeWithPuppeteer(url: string): Promise<HeadingData | null> {
 }
 
 export async function scrapeHeadings(url: string): Promise<ScrapeResult> {
+  const cacheKey = seoUrlCacheKey(url);
+  const cached = await cacheGetJson<ScrapeResult>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   try {
     const response = await axios.get<string>(url, {
       timeout: 8000,
@@ -92,14 +100,20 @@ export async function scrapeHeadings(url: string): Promise<ScrapeResult> {
       }
     }
 
-    return { success: true, headings };
+    const result = { success: true, headings };
+    await cacheSetJson(cacheKey, result, SEO_CACHE_TTL_SEC);
+    return result;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     const fallback = await scrapeWithPuppeteer(url);
     if (fallback && !headingsEmpty(fallback)) {
-      return { success: true, headings: fallback };
+      const result = { success: true, headings: fallback };
+      await cacheSetJson(cacheKey, result, SEO_CACHE_TTL_SEC);
+      return result;
     }
-    return { success: false, error: message };
+    const result = { success: false, error: message };
+    await cacheSetJson(cacheKey, result, Math.min(300, SEO_CACHE_TTL_SEC));
+    return result;
   }
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -42,6 +44,47 @@ export function AnalysisDashboard({
   serpResults,
   intent,
 }: AnalysisDashboardProps) {
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const totalResults = serpResults.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const currentResults = useMemo(
+    () =>
+      serpResults.slice(
+        (safePage - 1) * itemsPerPage,
+        safePage * itemsPerPage,
+      ),
+    [safePage, serpResults],
+  );
+
+  const startIdx = totalResults === 0 ? 0 : (safePage - 1) * itemsPerPage + 1;
+  const endIdx = Math.min(safePage * itemsPerPage, totalResults);
+
+  useEffect(() => {
+    console.log("Total SERP results:", serpResults.length);
+    console.log("Current page:", safePage);
+    console.log("Total pages:", totalPages);
+    console.log("Showing:", currentResults.length, "results");
+  }, [currentResults.length, safePage, serpResults.length, totalPages]);
+
+  const handleNext = () => {
+    if (safePage < totalPages) {
+      setCurrentPage((prev) => prev + 1);
+      tableRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const handlePrevious = () => {
+    if (safePage > 1) {
+      setCurrentPage((prev) => prev - 1);
+      tableRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   const breakdown =
     intent?.pageTypeBreakdown ??
     serpResults.reduce<Record<string, number>>((acc, row) => {
@@ -64,7 +107,7 @@ export function AnalysisDashboard({
           · Location{" "}
           <span className="font-medium text-[#0F172A]">{location}</span>
         </p>
-        <div className="overflow-x-auto rounded-xl border border-[#E2E8F0] bg-white">
+        <div ref={tableRef} className="overflow-x-auto rounded-xl border border-[#E2E8F0] bg-white">
           <Table>
             <TableHeader>
               <TableRow>
@@ -76,7 +119,7 @@ export function AnalysisDashboard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {serpResults.map((row) => (
+              {currentResults.map((row) => (
                 <TableRow key={row.url}>
                   <TableCell className="font-mono text-xs">{row.position}</TableCell>
                   <TableCell className="max-w-[140px] truncate text-xs">
@@ -104,6 +147,32 @@ export function AnalysisDashboard({
               ))}
             </TableBody>
           </Table>
+        </div>
+        <div className="flex flex-col gap-3 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#475569] sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Showing {startIdx}-{endIdx} of {totalResults} results
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              className="rounded-lg border border-[#CBD5E1] px-3 py-1.5 font-medium text-[#0F172A] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={safePage === 1}
+              onClick={handlePrevious}
+              type="button"
+            >
+              ← Previous
+            </button>
+            <span className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white">
+              Page {safePage} of {totalPages}
+            </span>
+            <button
+              className="rounded-lg border border-[#CBD5E1] px-3 py-1.5 font-medium text-[#0F172A] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={safePage === totalPages}
+              onClick={handleNext}
+              type="button"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       </TabsContent>
 

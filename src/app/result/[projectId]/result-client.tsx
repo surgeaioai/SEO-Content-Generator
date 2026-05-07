@@ -16,8 +16,19 @@ import {
   Share2,
 } from "lucide-react";
 
+import { BlogPreview } from "@/components/BlogPreview";
 import { Button } from "@/components/ui/button";
+import { downloadBlogAsDocx } from "@/lib/generateDocx";
 import type { GeneratedBlog, Project } from "@/types";
+
+const cleanBlogContent = (content: string): string => {
+  return content
+    .replace(/✅\s*/g, "")
+    .replace(/❌\s*/g, "")
+    .replace(/^([*\-]\s*)[\u{1F300}-\u{1FAFF}]\s*/gmu, "$1")
+    .replace(/  +/g, " ")
+    .trim();
+};
 
 export function ResultClient() {
   const params = useParams();
@@ -81,18 +92,16 @@ export function ResultClient() {
     }
   };
 
-  const handleDownload = (format: "md" | "html") => {
+  const handleDownload = async () => {
     if (!blog) return;
-    const content = format === "md" ? blog.markdown : blog.html;
-    const filename = `blog-${projectId}.${format}`;
-    const type = format === "md" ? "text/markdown" : "text/html";
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    try {
+      const markdownContent = blog.markdown;
+      const blogTitle = blog.h1 || project?.keyword || "SEO Blog Post";
+      await downloadBlogAsDocx(markdownContent, blogTitle, project?.keyword);
+    } catch (err) {
+      console.error("Download failed:", err);
+      setError("Download failed. Please try again.");
+    }
   };
 
   if (loading) {
@@ -116,6 +125,8 @@ export function ResultClient() {
   }
 
   const seoScore = blog.seoScore ?? blog.qualityReport?.score ?? 95;
+  const cleanedMarkdown = cleanBlogContent(blog.markdown || "");
+  const cleanedHtml = cleanBlogContent(blog.html || "");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
@@ -149,7 +160,7 @@ export function ResultClient() {
               {copied === "html" ? <CheckCircle className="mr-2 h-4 w-4" /> : <Code className="mr-2 h-4 w-4" />}
               Copy HTML
             </Button>
-            <Button size="sm" variant="outline" onClick={() => handleDownload("md")}>
+            <Button size="sm" variant="outline" onClick={handleDownload}>
               <Download className="mr-2 h-4 w-4" />
               Download
             </Button>
@@ -189,16 +200,16 @@ export function ResultClient() {
 
             <div className="min-h-[600px] p-8 lg:p-12">
               {activeTab === "preview" ? (
-                <article className="prose-premium" dangerouslySetInnerHTML={{ __html: blog.html || "" }} />
+                <BlogPreview markdown={cleanedMarkdown} />
               ) : null}
               {activeTab === "markdown" ? (
                 <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-6 font-mono text-sm dark:bg-slate-800">
-                  {blog.markdown}
+                  {cleanedMarkdown}
                 </pre>
               ) : null}
               {activeTab === "html" ? (
                 <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-6 font-mono text-sm dark:bg-slate-800">
-                  {blog.html}
+                  {cleanedHtml}
                 </pre>
               ) : null}
             </div>

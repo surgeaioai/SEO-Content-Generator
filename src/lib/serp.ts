@@ -72,24 +72,33 @@ export async function fetchSerpResults(
   }
 
   const cached = await readCache(keyword, location, numResults);
-  if (cached) {
+  if (cached && (cached.length >= numResults || numResults <= 10)) {
     return cached;
   }
 
   try {
-    const response = await axios.get(SERPAPI_URL, {
-      params: {
-        api_key: apiKey,
-        q: keyword,
-        location,
-        num: numResults,
-        engine: "google",
-        hl: "en",
-      },
-      timeout: 30_000,
-    });
+    const chunks = Math.max(1, Math.ceil(numResults / 10));
+    const responses = await Promise.all(
+      Array.from({ length: chunks }).map((_, idx) =>
+        axios.get(SERPAPI_URL, {
+          params: {
+            api_key: apiKey,
+            q: keyword,
+            location,
+            num: 10,
+            start: idx * 10,
+            engine: "google",
+            hl: "en",
+            gl: "us",
+          },
+          timeout: 30_000,
+        }),
+      ),
+    );
 
-    const organicResults = response.data?.organic_results ?? [];
+    const organicResults = responses.flatMap(
+      (response) => (response.data?.organic_results ?? []) as Record<string, unknown>[],
+    );
 
     const mapped: SerpApiResult[] = organicResults
       .slice(0, numResults)
@@ -100,7 +109,7 @@ export async function fetchSerpResults(
         snippet: String(result.snippet ?? ""),
         displayed_link: String(result.displayed_link ?? ""),
       }))
-      .filter((r: SerpApiResult) => r.link.length > 0);
+      .filter((r: SerpApiResult, idx, arr) => r.link.length > 0 && arr.findIndex((x) => x.link === r.link) === idx);
 
     await writeCache(keyword, location, numResults, mapped);
     return mapped;

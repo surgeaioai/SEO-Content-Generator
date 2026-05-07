@@ -9,6 +9,7 @@ import { sanitizePlainText } from "@/lib/text";
 import type { Project, SerpResult } from "@/types";
 
 export const maxDuration = 300;
+const SERP_RESULTS_LIMIT = 30;
 
 function safeHostname(url: string) {
   try {
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     const existing = await loadProject(projectId);
 
-    const serpApiResults = await fetchSerpResults(keyword, location, 30);
+    const serpApiResults = await fetchSerpResults(keyword, location, SERP_RESULTS_LIMIT);
 
     if (serpApiResults.length === 0) {
       return NextResponse.json({ error: "No SERP results found" }, { status: 404 });

@@ -16,6 +16,16 @@ type AnalyzeClientProps = {
   projectId: string;
 };
 
+function extractRecommendedAngles(payload: unknown): ContentAngle[] {
+  if (!payload || typeof payload !== "object") return [];
+  const row = payload as {
+    recommendedAngles?: ContentAngle[];
+    recommended_angles?: ContentAngle[];
+    angles?: ContentAngle[];
+  };
+  return row.recommendedAngles ?? row.recommended_angles ?? row.angles ?? [];
+}
+
 async function readJsonError(response: Response) {
   try {
     const data: unknown = await response.json();
@@ -35,6 +45,8 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
   const [serpResults, setSerpResults] = useState<SerpResult[]>([]);
   const [intent, setIntent] = useState<IntentAnalysis | undefined>();
   const [angles, setAngles] = useState<ContentAngle[]>([]);
+  const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
+  const [anglesError, setAnglesError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [progress, setProgress] = useState(8);
   const [statusLabel, setStatusLabel] = useState("Loading project…");
@@ -47,11 +59,14 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     if (!res.ok) {
       throw new Error(await readJsonError(res));
     }
-    const data = (await res.json()) as Project;
+    const data = (await res.json()) as Project & {
+      recommended_angles?: ContentAngle[];
+      angles?: ContentAngle[];
+    };
     setProject(data);
     setSerpResults(data.serpResults);
     setIntent(data.intentAnalysis);
-    setAngles(data.recommendedAngles ?? []);
+    setAngles(extractRecommendedAngles(data));
     return data;
   }, [projectId]);
 
@@ -96,6 +111,11 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     });
     if (!recRes.ok) {
       throw new Error(await readJsonError(recRes));
+    }
+    const recData = (await recRes.json()) as unknown;
+    const incomingAngles = extractRecommendedAngles(recData);
+    if (incomingAngles.length > 0) {
+      setAngles(incomingAngles);
     }
     await refreshProject();
 
@@ -167,6 +187,31 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
       setError(err instanceof Error ? err.message : "Could not save your angle.");
     } finally {
       setBusyAngleKey(null);
+    }
+  };
+
+  const handleGenerateAngles = async () => {
+    setIsGeneratingAngles(true);
+    setAnglesError(null);
+    setError("");
+    try {
+      const response = await fetch("/api/recommend-angles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      if (!response.ok) {
+        throw new Error(await readJsonError(response));
+      }
+      const data = (await response.json()) as unknown;
+      const nextAngles = extractRecommendedAngles(data).slice(0, 4);
+      setAngles(nextAngles);
+      await refreshProject();
+    } catch (err: unknown) {
+      console.error(err);
+      setAnglesError("Failed to generate angles. Please try again.");
+    } finally {
+      setIsGeneratingAngles(false);
     }
   };
 
@@ -263,11 +308,28 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
       ) : null}
 
       <section className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-bold text-[#0F172A] md:text-3xl">Recommended content angles</h2>
-          <p className="text-sm text-[#475569]">
-            Pick one angle to configure tone, length, and generation settings.
-          </p>
+        <div className="mb-2 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-[#0F172A] md:text-3xl">Recommended content angles</h2>
+            <p className="text-sm text-[#475569]">
+              Pick one angle to configure tone, length, and generation settings.
+            </p>
+          </div>
+          <button
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-purple-700 hover:shadow-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isGeneratingAngles || busy}
+            onClick={handleGenerateAngles}
+            type="button"
+          >
+            {isGeneratingAngles ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Generating angles...
+              </>
+            ) : (
+              <>✨ Generate 4 Content Angles</>
+            )}
+          </button>
         </div>
 
         {busy && angles.length === 0 ? (
@@ -279,7 +341,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
               />
             ))}
           </div>
-        ) : (
+        ) : angles.length > 0 ? (
           <div className="grid gap-8 md:grid-cols-2">
             {angles.map((angle) => (
               <ContentAngleCard
@@ -291,7 +353,20 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
               />
             ))}
           </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-6 text-sm text-[#475569]">
+            No angles generated yet. Re-run analysis to fetch fresh recommendations.
+          </div>
         )}
+
+        {anglesError ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            ❌ {anglesError}
+            <button className="ml-2 underline" onClick={handleGenerateAngles} type="button">
+              Try again
+            </button>
+          </div>
+        ) : null}
       </section>
     </motion.div>
   );

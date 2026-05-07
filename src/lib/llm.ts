@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
+import { AI_CACHE_TTL_SEC, aiPromptCacheKey, cacheGet, cacheSet } from "@/lib/cache";
 import { parseJsonFromLlm } from "@/lib/json-llm";
 
 const anthropicClient = process.env.ANTHROPIC_API_KEY
@@ -73,14 +74,44 @@ export async function callLLM(
   jsonMode: boolean = false,
 ): Promise<string> {
   if (anthropicClient) {
+    const cacheKey = aiPromptCacheKey({
+      provider: "anthropic",
+      model: CLAUDE_MODEL,
+      systemPrompt,
+      userPrompt,
+      maxTokens,
+      jsonMode,
+    });
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const prompt = jsonMode
       ? `${userPrompt}\n\nReturn ONLY valid JSON. No markdown fences. No commentary.`
       : userPrompt;
-    return callClaude(systemPrompt, prompt, maxTokens);
+    const output = await callClaude(systemPrompt, prompt, maxTokens);
+    await cacheSet(cacheKey, output, AI_CACHE_TTL_SEC);
+    return output;
   }
 
   if (openaiClient) {
-    return callOpenAI(systemPrompt, userPrompt, maxTokens, jsonMode);
+    const cacheKey = aiPromptCacheKey({
+      provider: "openai",
+      model: OPENAI_MODEL,
+      systemPrompt,
+      userPrompt,
+      maxTokens,
+      jsonMode,
+    });
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const output = await callOpenAI(systemPrompt, userPrompt, maxTokens, jsonMode);
+    await cacheSet(cacheKey, output, AI_CACHE_TTL_SEC);
+    return output;
   }
 
   throw new Error("Configure ANTHROPIC_API_KEY or OPENAI_API_KEY");

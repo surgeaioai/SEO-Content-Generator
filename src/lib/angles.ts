@@ -5,6 +5,7 @@ import type { ContentAngle } from "@/types";
 const targetFormatEnum = z.enum(["blog", "guide", "comparison", "listicle", "tutorial"]);
 
 export const contentAngleSchema = z.object({
+  id: z.number().int().positive().optional(),
   title: z.string().min(1).max(120),
   angle: z.string().min(1),
   targetFormat: z.preprocess((val) => {
@@ -24,6 +25,15 @@ export const contentAngleSchema = z.object({
     if (v.startsWith("high")) return "High";
     return "Medium";
   }, z.enum(["Low", "Medium", "High"])),
+  tone: z.string().trim().min(1).max(40).optional(),
+  estimatedWordCount: z.preprocess((val) => {
+    if (typeof val === "number") return Math.round(val);
+    if (typeof val === "string") {
+      const parsed = Number.parseInt(val.replace(/[^\d]/g, ""), 10);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return undefined;
+  }, z.number().int().min(600).max(4000).optional()),
   whyItWorks: z.string().min(1),
   targetAudience: z.string().min(1),
 });

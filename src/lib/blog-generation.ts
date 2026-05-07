@@ -308,9 +308,12 @@ ${TABLE_FORMATTING_GUARDRAILS}
    > 📊 **Key Stat:** [stat with source]
 11. End with:
    ## Key Takeaways
-   - ✅ Point 1
-   - ✅ Point 2
-   - ✅ Point 3
+   - Point 1
+   - Point 2
+   - Point 3
+12. In the Key Takeaways section, use plain bullet points only.
+    Do NOT use ✅ or any emoji before each point.
+    Format each takeaway as a simple bullet point starting with "- "
 
 SEARCH INTENT: ${intentAnalysis.primaryIntent}
 MUST COVER: ${intentAnalysis.mustCoverTopics.join(", ")}

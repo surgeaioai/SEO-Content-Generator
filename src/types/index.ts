@@ -36,10 +36,13 @@ export interface IntentAnalysis {
 }
 
 export interface ContentAngle {
+  id?: number;
   title: string;
   angle: string;
   targetFormat: string;
   estimatedDifficulty: "Low" | "Medium" | "High";
+  tone?: string;
+  estimatedWordCount?: number;
   whyItWorks: string;
   targetAudience: string;
 }

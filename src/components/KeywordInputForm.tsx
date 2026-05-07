@@ -33,6 +33,16 @@ export function KeywordInputForm() {
   const [loadingStage, setLoadingStage] = useState(0);
   const [error, setError] = useState("");
 
+  const readApiPayload = async (response: Response): Promise<unknown> => {
+    const raw = await response.text();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as unknown;
+    } catch {
+      return raw;
+    }
+  };
+
   const isDisabled = useMemo(() => {
     return !keyword.trim() || !location.trim() || isLoading;
   }, [isLoading, keyword, location]);
@@ -54,16 +64,26 @@ export function KeywordInputForm() {
         body: JSON.stringify({ keyword, location, contentType }),
       });
 
-      const payload: unknown = await response.json();
+      const payload = await readApiPayload(response);
 
       if (!response.ok) {
-        const message =
-          payload &&
-          typeof payload === "object" &&
-          "error" in payload &&
-          typeof (payload as { error: unknown }).error === "string"
-            ? (payload as { error: string }).error
-            : "Something went wrong";
+        const message = (() => {
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "error" in payload &&
+            typeof (payload as { error: unknown }).error === "string"
+          ) {
+            return (payload as { error: string }).error;
+          }
+          if (response.status === 404) {
+            return "API route not found: /api/scrape-serp";
+          }
+          if (typeof payload === "string" && payload.toLowerCase().includes("doctype")) {
+            return "Server returned HTML instead of JSON. Please restart dev server and retry.";
+          }
+          return `Request failed (${response.status})`;
+        })();
         throw new Error(message);
       }
 

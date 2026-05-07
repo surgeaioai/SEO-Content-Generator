@@ -73,8 +73,14 @@ export function ContentAngleCard({
         <h3 className="mb-2 text-xl font-bold text-[#0F172A]">{angle.title}</h3>
         <p className="mb-3 text-sm text-[#94A3B8]">{angle.angle}</p>
         <p className="mb-2 text-sm leading-relaxed text-[#475569]">{angle.whyItWorks}</p>
-        <p className="mb-6 text-xs font-medium text-indigo-600">
+        <p className="mb-1 text-xs font-medium text-indigo-600">
           👥 {angle.targetAudience}
+        </p>
+        <p className="mb-1 text-xs text-[#475569]">
+          🎯 <span className="font-semibold">Tone:</span> {angle.tone ?? "Professional"}
+        </p>
+        <p className="mb-6 text-xs text-[#475569]">
+          📝 <span className="font-semibold">Word Count:</span> ~{angle.estimatedWordCount ?? 1400}
         </p>
 
         <button

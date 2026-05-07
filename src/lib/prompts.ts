@@ -33,7 +33,7 @@ Provide a JSON object with EXACTLY these keys:
 
 Return ONLY JSON. No markdown fences.`;
 
-export const RECOMMEND_ANGLES_PROMPT = `Based on the SERP analysis below, suggest 4 DISTINCT content angles I could write
+export const RECOMMEND_ANGLES_PROMPT = `Based on the SERP analysis below, suggest exactly 4 DISTINCT content angles I could write
 to outrank competitors. Each angle should:
 - Have a unique positioning (don't suggest 4 versions of the same thing)
 - Address an identified gap or improve on competitor weakness
@@ -46,12 +46,16 @@ Gaps JSON: {gaps}
 Must-cover topics JSON: {mustCover}
 Competitor H2 themes JSON: {h2Themes}
 
-Return ONLY a JSON array (length 4) of objects with keys:
-title, angle, targetFormat, estimatedDifficulty, whyItWorks, targetAudience
+Return exactly 4 distinct content angles as a JSON array.
+Each angle object must include these keys:
+id, title, targetAudience, tone, estimatedWordCount, whyItWorks, angle, targetFormat, estimatedDifficulty
 
 Where:
+- id is 1..4
 - targetFormat is one of: blog, guide, comparison, listicle, tutorial
 - estimatedDifficulty is one of: Low, Medium, High
+- tone is a short descriptor (e.g., Professional, Conversational, Authoritative)
+- estimatedWordCount is an integer between 800 and 2500
 - title max 60 characters`;
 
 export const GENERATE_OUTLINE_PROMPT = `You are an expert SEO content strategist. Create a detailed blog outline for:

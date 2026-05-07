@@ -67,7 +67,12 @@ export async function POST(request: Request) {
       4000,
     );
 
-    const angles: ContentAngle[] = normalizeAngles(raw);
+    const angles: ContentAngle[] = normalizeAngles(raw).slice(0, 4).map((angle, index) => ({
+      ...angle,
+      id: angle.id ?? index + 1,
+      tone: angle.tone ?? "Professional",
+      estimatedWordCount: angle.estimatedWordCount ?? 1400,
+    }));
 
     const now = new Date().toISOString();
     await saveProject({
@@ -77,7 +82,11 @@ export async function POST(request: Request) {
       status: "ready",
     });
 
-    return NextResponse.json({ angles });
+    return NextResponse.json({
+      angles,
+      recommendedAngles: angles,
+      recommended_angles: angles,
+    });
   } catch (error: unknown) {
     console.error("recommend-angles error", error);
     return NextResponse.json(
