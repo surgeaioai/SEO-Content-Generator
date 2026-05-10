@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { requireUserId } from "@/lib/auth-session";
 import {
   cacheGetJson,
   cacheSetJson,
@@ -7,36 +8,38 @@ import {
   projectBlogCacheKey,
 } from "@/lib/cache";
 import { generateBlogFast, generateFullBlog } from "@/lib/blog-generation";
+import { logger } from "@/lib/logger";
+import { getClientIp } from "@/lib/request-ip";
+import { limitGenerateBlog, limitGeneralApi } from "@/lib/rate-limiter";
 import { loadProject, saveProject } from "@/lib/project-store";
-import { checkRateLimit } from "@/lib/rate-limit";
 import { generateBlogBodySchema } from "@/lib/schemas";
+import { checkAndIncrementUsage } from "@/lib/usage-guard";
 
 export const maxDuration = 300;
-
-function clientIp(request: NextRequest) {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown"
-  );
-}
 
 export async function POST(request: NextRequest) {
   let recoveryProjectId: string | null = null;
 
-  try {
-    const ip = clientIp(request);
-    const limited = checkRateLimit(`generate-blog:${ip}`);
-    if (!limited.ok) {
-      return NextResponse.json(
-        {
-          error: "Rate limit reached. Try again later.",
-          retryAfterSec: limited.retryAfterSec,
-        },
-        { status: 429 },
-      );
-    }
+  const authRes = await requireUserId();
+  if (authRes instanceof NextResponse) return authRes;
+  const { userId } = authRes;
 
+  const ip = getClientIp(request);
+  const genRl = await limitGenerateBlog(ip);
+  if (!genRl.ok) {
+    return NextResponse.json(
+      {
+        error: "Rate limit reached. Try again later.",
+        retryAfterSec: genRl.retryAfterSec,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(genRl.retryAfterSec) },
+      },
+    );
+  }
+
+  try {
     const json: unknown = await request.json();
     const parsed = generateBlogBodySchema.safeParse(json);
 
@@ -46,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     recoveryProjectId = parsed.data.projectId;
 
-    const project = await loadProject(parsed.data.projectId);
+    const project = await loadProject(userId, parsed.data.projectId);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
@@ -59,8 +62,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Intent analysis missing" }, { status: 400 });
     }
 
+    const usage = await checkAndIncrementUsage(userId);
+    if (!usage.allowed) {
+      return NextResponse.json(
+        {
+          error: "Monthly generation limit reached for your plan.",
+          remaining: usage.remaining,
+          limit: usage.limit,
+        },
+        { status: 403 },
+      );
+    }
+
     const now = new Date().toISOString();
-    await saveProject({
+    await saveProject(userId, {
       ...project,
       status: "generating",
       updatedAt: now,
@@ -68,8 +83,13 @@ export async function POST(request: NextRequest) {
     await invalidateProjectContentCache(parsed.data.projectId);
 
     const useQuickMode = parsed.data.quickMode ?? true;
-    console.log(
-      `[${parsed.data.projectId}] Starting ${useQuickMode ? "quick" : "detailed"} generation for ${parsed.data.wordCount} words`,
+    logger.info(
+      {
+        projectId: parsed.data.projectId,
+        mode: useQuickMode ? "quick" : "detailed",
+        words: parsed.data.wordCount,
+      },
+      "blog generation started",
     );
 
     const blog = useQuickMode
@@ -99,7 +119,7 @@ export async function POST(request: NextRequest) {
           ctas: parsed.data.ctas,
         });
 
-    const updated = await loadProject(parsed.data.projectId);
+    const updated = await loadProject(userId, parsed.data.projectId);
     if (!updated) {
       throw new Error("Project disappeared during generation");
     }
@@ -122,17 +142,17 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
 
-    await saveProject(finalProject);
+    await saveProject(userId, finalProject);
     await cacheSetJson(projectBlogCacheKey(parsed.data.projectId), blog, 60 * 60);
 
     return NextResponse.json({ success: true, blog, project: finalProject });
   } catch (error: unknown) {
-    console.error("generate-blog error", error);
+    logger.error({ err: error }, "generate-blog error");
 
     if (recoveryProjectId) {
-      const existing = await loadProject(recoveryProjectId);
+      const existing = await loadProject(userId, recoveryProjectId);
       if (existing) {
-        await saveProject({
+        await saveProject(userId, {
           ...existing,
           status: "ready",
           updatedAt: new Date().toISOString(),
@@ -148,6 +168,25 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const authRes = await requireUserId();
+  if (authRes instanceof NextResponse) return authRes;
+  const { userId } = authRes;
+
+  const ip = getClientIp(request);
+  const rl = await limitGeneralApi(ip);
+  if (!rl.ok) {
+    return NextResponse.json(
+      {
+        error: "Too many requests. Please retry shortly.",
+        retryAfterSec: rl.retryAfterSec,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rl.retryAfterSec) },
+      },
+    );
+  }
+
   try {
     const projectId = request.nextUrl.searchParams.get("projectId");
     if (!projectId) {
@@ -155,7 +194,7 @@ export async function GET(request: NextRequest) {
     }
 
     const cachedBlog = await cacheGetJson<unknown>(projectBlogCacheKey(projectId));
-    const project = await loadProject(projectId);
+    const project = await loadProject(userId, projectId);
     const blog = cachedBlog ?? project?.generatedBlog;
     if (!project || !blog) {
       return NextResponse.json({ error: "Blog not found" }, { status: 404 });
@@ -163,7 +202,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ blog, project });
   } catch (error: unknown) {
-    console.error("generate-blog GET error", error);
+    logger.error({ err: error }, "generate-blog GET error");
     return NextResponse.json({ error: "Could not load blog" }, { status: 500 });
   }
 }

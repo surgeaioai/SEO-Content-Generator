@@ -5,7 +5,46 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Layer 1 rule: static assets (JS/CSS/fonts/images) cached for 1 year at CDN/edge.
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: https:",
+              "font-src 'self'",
+              "connect-src 'self' https://api.anthropic.com https://api.openai.com https://accounts.google.com https://github.com https://api.github.com",
+            ].join("; "),
+          },
+        ],
+      },
+      {
+        source: "/api/health",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: "/api/job-status/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate",
+          },
+        ],
+      },
+      {
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
+      },
+      {
         source: "/_next/static/:path*",
         headers: [
           {
@@ -15,23 +54,12 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Layer 1 rule: public assets served via CDN should also be long-lived.
-        source: "/:path*\\.:ext(js|css|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf)",
+        source:
+          "/:path*\\.:ext(js|css|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf)",
         headers: [
           {
             key: "Cache-Control",
             value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      {
-        // Layer 1 baseline rule: API responses are edge-cacheable for 60 seconds.
-        // Specific AI routes are overridden in middleware to 10 minutes.
-        source: "/api/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, s-maxage=60, stale-while-revalidate=120",
           },
         ],
       },

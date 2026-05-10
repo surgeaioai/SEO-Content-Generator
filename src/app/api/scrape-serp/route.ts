@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
+import { requireUserId } from "@/lib/auth-session";
 import { loadProject, saveProject } from "@/lib/project-store";
+import { logger } from "@/lib/logger";
+import { getClientIp } from "@/lib/request-ip";
+import { limitGeneralApi } from "@/lib/rate-limiter";
 import { scrapeMultipleUrls } from "@/lib/scraper";
 import { scrapeSerpBodySchema } from "@/lib/schemas";
 import { fetchSerpResults } from "@/lib/serp";
@@ -20,6 +24,25 @@ function safeHostname(url: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const authRes = await requireUserId();
+  if (authRes instanceof NextResponse) return authRes;
+  const { userId } = authRes;
+
+  const ip = getClientIp(request);
+  const rl = await limitGeneralApi(ip);
+  if (!rl.ok) {
+    return NextResponse.json(
+      {
+        error: "Too many requests. Please retry shortly.",
+        retryAfterSec: rl.retryAfterSec,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rl.retryAfterSec) },
+      },
+    );
+  }
+
   try {
     const json: unknown = await request.json();
     const parsed = scrapeSerpBodySchema.safeParse(json);
@@ -34,7 +57,7 @@ export async function POST(request: NextRequest) {
     const projectId = parsed.data.projectId ?? uuidv4();
 
     const now = new Date().toISOString();
-    const existing = await loadProject(projectId);
+    const existing = await loadProject(userId, projectId);
 
     const serpApiResults = await fetchSerpResults(keyword, location, SERP_RESULTS_LIMIT);
 
@@ -80,7 +103,7 @@ export async function POST(request: NextRequest) {
       project.lastBlogConfig = undefined;
     }
 
-    await saveProject(project);
+    await saveProject(userId, project);
 
     const successfulScrapes = serpResults.filter((r) => r.scrapedSuccessfully).length;
 
@@ -92,7 +115,7 @@ export async function POST(request: NextRequest) {
       successfulScrapes,
     });
   } catch (error: unknown) {
-    console.error("scrape-serp error", error);
+    logger.error({ err: error }, "scrape-serp error");
     return NextResponse.json(
       { error: "We could not complete SERP scraping. Please try again." },
       { status: 500 },
@@ -101,20 +124,39 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const authRes = await requireUserId();
+  if (authRes instanceof NextResponse) return authRes;
+  const { userId } = authRes;
+
+  const ip = getClientIp(request);
+  const rl = await limitGeneralApi(ip);
+  if (!rl.ok) {
+    return NextResponse.json(
+      {
+        error: "Too many requests. Please retry shortly.",
+        retryAfterSec: rl.retryAfterSec,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rl.retryAfterSec) },
+      },
+    );
+  }
+
   try {
     const projectId = request.nextUrl.searchParams.get("projectId");
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
 
-    const project = await loadProject(projectId);
+    const project = await loadProject(userId, projectId);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     return NextResponse.json(project);
   } catch (error: unknown) {
-    console.error("scrape-serp GET error", error);
+    logger.error({ err: error }, "scrape-serp GET error");
     return NextResponse.json({ error: "Could not load project" }, { status: 500 });
   }
 }

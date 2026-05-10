@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
+import { AuthSessionProvider } from "@/components/auth-session-provider";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -36,8 +37,10 @@ export default function RootLayout({
           disableTransitionOnChange
           enableSystem={false}
         >
-          <SiteHeader />
-          {children}
+          <AuthSessionProvider>
+            <SiteHeader />
+            {children}
+          </AuthSessionProvider>
         </ThemeProvider>
       </body>
     </html>

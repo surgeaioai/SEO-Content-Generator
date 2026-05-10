@@ -45,7 +45,9 @@ export function ResultClient() {
 
     async function load() {
       try {
-        const res = await fetch(`/api/generate-blog?projectId=${projectId}`);
+        const res = await fetch(`/api/generate-blog?projectId=${projectId}`, {
+          credentials: "include",
+        });
         const data: unknown = await res.json();
         if (!res.ok) {
           throw new Error(
@@ -98,8 +100,7 @@ export function ResultClient() {
       const markdownContent = blog.markdown;
       const blogTitle = blog.h1 || project?.keyword || "SEO Blog Post";
       await downloadBlogAsDocx(markdownContent, blogTitle, project?.keyword);
-    } catch (err) {
-      console.error("Download failed:", err);
+    } catch {
       setError("Download failed. Please try again.");
     }
   };

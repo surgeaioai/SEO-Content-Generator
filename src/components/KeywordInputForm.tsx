@@ -60,6 +60,7 @@ export function KeywordInputForm() {
     try {
       const response = await fetch("/api/scrape-serp", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword, location, contentType }),
       });

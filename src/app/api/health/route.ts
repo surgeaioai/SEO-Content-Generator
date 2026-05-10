@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { logger } from "@/lib/logger";
+
 export async function GET() {
   try {
     return NextResponse.json(
@@ -10,13 +12,12 @@ export async function GET() {
       },
       {
         headers: {
-          // Health checks should never be cached by intermediaries.
           "Cache-Control": "no-store",
         },
       },
     );
   } catch (error: unknown) {
-    console.error("health check error", error);
+    logger.error({ err: error }, "health check error");
     return NextResponse.json(
       {
         status: "error",

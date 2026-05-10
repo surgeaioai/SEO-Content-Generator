@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -63,13 +63,6 @@ export function AnalysisDashboard({
 
   const startIdx = totalResults === 0 ? 0 : (safePage - 1) * itemsPerPage + 1;
   const endIdx = Math.min(safePage * itemsPerPage, totalResults);
-
-  useEffect(() => {
-    console.log("Total SERP results:", serpResults.length);
-    console.log("Current page:", safePage);
-    console.log("Total pages:", totalPages);
-    console.log("Showing:", currentResults.length, "results");
-  }, [currentResults.length, safePage, serpResults.length, totalPages]);
 
   const handleNext = () => {
     if (safePage < totalPages) {

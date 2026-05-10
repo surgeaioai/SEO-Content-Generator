@@ -1,4 +1,6 @@
 import { Kafka, type Consumer, type ConsumerSubscribeTopic, logLevel } from "kafkajs";
+
+import { logger } from "@/lib/logger";
 import { processAiJob } from "@/lib/workers/aiWorker";
 import { processSeoJob } from "@/lib/workers/seoWorker";
 
@@ -12,6 +14,7 @@ export const KAFKA_TOPICS = {
 export interface AiContentJobMessage {
   jobId: string;
   projectId: string;
+  userId: string;
   wordCount: number;
   brandGuidelines?: string;
   brandVoice?: string;
@@ -26,6 +29,7 @@ export interface AiContentJobMessage {
 export interface SeoAnalysisJobMessage {
   jobId: string;
   projectId: string;
+  userId: string;
 }
 
 export interface NotificationJobMessage {
@@ -111,7 +115,7 @@ export async function publishKafkaMessage<TTopic extends keyof KafkaMessageByTop
     });
     return true;
   } catch (error: unknown) {
-    console.error(`kafka publish failed for topic ${String(topic)}`, error);
+    logger.error({ err: error, topic: String(topic) }, "kafka publish failed");
     return false;
   }
 }
@@ -146,7 +150,10 @@ export async function startKafkaConsumer<TTopic extends keyof KafkaMessageByTopi
         const parsed = JSON.parse(raw) as KafkaMessageByTopic[TTopic];
         await params.handler(parsed);
       } catch (error: unknown) {
-        console.error(`kafka consumer parse/handler error on ${String(params.topic)}`, error);
+        logger.error(
+          { err: error, topic: String(params.topic) },
+          "kafka consumer parse/handler error",
+        );
       }
     },
   });

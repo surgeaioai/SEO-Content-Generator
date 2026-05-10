@@ -161,10 +161,22 @@ export function SiteHeader() {
             </div>
           </div>
           <NavLink href="/pricing">Pricing</NavLink>
+          <Link
+            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100"
+            href="/login"
+          >
+            Sign in
+          </Link>
           <ThemeToggle />
         </nav>
 
         <div className="flex items-center gap-2 lg:hidden">
+          <Link
+            className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700"
+            href="/login"
+          >
+            Sign in
+          </Link>
           <ThemeToggle />
           <button
             aria-label={open ? "Close menu" : "Open menu"}

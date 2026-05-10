@@ -88,7 +88,9 @@ export function ConfigureClient({ projectId }: ConfigureClientProps) {
 
     async function load() {
       try {
-        const res = await fetch(`/api/scrape-serp?projectId=${projectId}`);
+        const res = await fetch(`/api/scrape-serp?projectId=${projectId}`, {
+          credentials: "include",
+        });
         if (!res.ok) {
           throw new Error("Project not found");
         }
@@ -157,6 +159,7 @@ export function ConfigureClient({ projectId }: ConfigureClientProps) {
     try {
       const res = await fetch("/api/generate-blog", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId,

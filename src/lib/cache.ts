@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { getRedisClient } from "@/lib/redis";
+import { logger } from "@/lib/logger";
 
 type MemoryValue = {
   value: string;
@@ -45,7 +46,7 @@ export async function cacheGet(key: string): Promise<string | null> {
       const value = await redis.get(key);
       return value ?? null;
     } catch (error: unknown) {
-      console.error("cacheGet redis fallback", error);
+      logger.error({ err: error }, "cacheGet redis fallback");
     }
   }
 
@@ -72,7 +73,7 @@ export async function cacheSet(
       await redis.set(key, value, "EX", ttlSec);
       return;
     } catch (error: unknown) {
-      console.error("cacheSet redis fallback", error);
+      logger.error({ err: error }, "cacheSet redis fallback");
     }
   }
 
@@ -92,7 +93,7 @@ export async function cacheDelete(key: string): Promise<void> {
     try {
       await redis.del(key);
     } catch (error: unknown) {
-      console.error("cacheDelete redis fallback", error);
+      logger.error({ err: error }, "cacheDelete redis fallback");
     }
   }
   memoryCache.delete(key);
@@ -120,7 +121,7 @@ export async function invalidateByPrefix(prefix: string): Promise<void> {
         }
       } while (cursor !== "0");
     } catch (error: unknown) {
-      console.error("invalidateByPrefix redis fallback", error);
+      logger.error({ err: error }, "invalidateByPrefix redis fallback");
     }
   }
 
@@ -180,7 +181,7 @@ export async function checkRateLimitWithRedis(params: {
       }
       return { ok: true, remaining, resetSec };
     } catch (error: unknown) {
-      console.error("checkRateLimitWithRedis fallback", error);
+      logger.error({ err: error }, "checkRateLimitWithRedis fallback");
     }
   }
 

@@ -32,7 +32,7 @@ export async function processSeoJob(message: SeoAnalysisJobMessage): Promise<voi
   );
 
   try {
-    const project = await loadProject(message.projectId);
+    const project = await loadProject(message.userId, message.projectId);
     if (!project) {
       throw new Error("Project not found");
     }
@@ -48,7 +48,7 @@ export async function processSeoJob(message: SeoAnalysisJobMessage): Promise<voi
       pageType: classificationObj[row.url] ?? "Unknown",
     }));
 
-    await saveProject({
+    await saveProject(message.userId, {
       ...project,
       serpResults: updatedResults,
       updatedAt: new Date().toISOString(),

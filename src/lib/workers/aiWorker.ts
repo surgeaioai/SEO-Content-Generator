@@ -7,6 +7,7 @@ import {
   projectBlogCacheKey,
 } from "@/lib/cache";
 import type { AiContentJobMessage } from "@/lib/kafka";
+import { logger } from "@/lib/logger";
 import { loadProject, saveProject } from "@/lib/project-store";
 
 export type JobState = "queued" | "processing" | "completed" | "failed";
@@ -44,7 +45,7 @@ export async function processAiJob(message: AiContentJobMessage): Promise<void> 
   });
 
   try {
-    const project = await loadProject(message.projectId);
+    const project = await loadProject(message.userId, message.projectId);
     if (!project) {
       throw new Error("Project not found");
     }
@@ -56,7 +57,7 @@ export async function processAiJob(message: AiContentJobMessage): Promise<void> 
     }
 
     const now = new Date().toISOString();
-    await saveProject({
+    await saveProject(message.userId, {
       ...project,
       status: "generating",
       updatedAt: now,
@@ -91,7 +92,7 @@ export async function processAiJob(message: AiContentJobMessage): Promise<void> 
           ctas: message.ctas,
         });
 
-    const updated = await loadProject(message.projectId);
+    const updated = await loadProject(message.userId, message.projectId);
     if (!updated) {
       throw new Error("Project disappeared during generation");
     }
@@ -114,7 +115,7 @@ export async function processAiJob(message: AiContentJobMessage): Promise<void> 
       updatedAt: new Date().toISOString(),
     };
 
-    await saveProject(finalProject);
+    await saveProject(message.userId, finalProject);
     await cacheSetJson(projectBlogCacheKey(message.projectId), blog, 60 * 60);
     await saveJobStatus({
       jobId: message.jobId,
@@ -129,11 +130,11 @@ export async function processAiJob(message: AiContentJobMessage): Promise<void> 
       },
     });
   } catch (error: unknown) {
-    console.error("ai worker failed", error);
+    logger.error({ err: error }, "ai worker failed");
 
-    const project = await loadProject(message.projectId);
+    const project = await loadProject(message.userId, message.projectId);
     if (project) {
-      await saveProject({
+      await saveProject(message.userId, {
         ...project,
         status: "ready",
         updatedAt: new Date().toISOString(),

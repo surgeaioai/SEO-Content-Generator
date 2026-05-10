@@ -55,7 +55,9 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
   const [reanalyzeBusy, setReanalyzeBusy] = useState(false);
 
   const refreshProject = useCallback(async () => {
-    const res = await fetch(`/api/scrape-serp?projectId=${projectId}`);
+    const res = await fetch(`/api/scrape-serp?projectId=${projectId}`, {
+      credentials: "include",
+    });
     if (!res.ok) {
       throw new Error(await readJsonError(res));
     }
@@ -82,6 +84,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     setProgress(35);
     const classifyRes = await fetch("/api/classify-pages", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId }),
     });
@@ -94,6 +97,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     setProgress(60);
     const intentRes = await fetch("/api/analyze-intent", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId }),
     });
@@ -106,6 +110,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     setProgress(85);
     const recRes = await fetch("/api/recommend-angles", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId }),
     });
@@ -126,15 +131,14 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
 
   useEffect(() => {
     const id = window.setTimeout(() => {
-      runPipeline().catch((err: unknown) => {
-        console.error(err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Something went wrong while analyzing this project.",
-        );
-        setBusy(false);
-      });
+    runPipeline().catch((err: unknown) => {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong while analyzing this project.",
+      );
+      setBusy(false);
+    });
     }, 0);
 
     return () => window.clearTimeout(id);
@@ -147,6 +151,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     try {
       const res = await fetch("/api/scrape-serp", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           keyword: project.keyword,
@@ -176,6 +181,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     try {
       const res = await fetch("/api/select-angle", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId, angle }),
       });
@@ -197,6 +203,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
     try {
       const response = await fetch("/api/recommend-angles", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
       });
@@ -207,8 +214,7 @@ export function AnalyzeClient({ projectId }: AnalyzeClientProps) {
       const nextAngles = extractRecommendedAngles(data).slice(0, 4);
       setAngles(nextAngles);
       await refreshProject();
-    } catch (err: unknown) {
-      console.error(err);
+    } catch {
       setAnglesError("Failed to generate angles. Please try again.");
     } finally {
       setIsGeneratingAngles(false);

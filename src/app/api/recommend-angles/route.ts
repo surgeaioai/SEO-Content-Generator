@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { normalizeAngles } from "@/lib/angles";
+import { requireUserId } from "@/lib/auth-session";
 import { callLLMJson } from "@/lib/llm";
+import { logger } from "@/lib/logger";
 import { RECOMMEND_ANGLES_PROMPT } from "@/lib/prompts";
+import { getClientIp } from "@/lib/request-ip";
+import { limitGeneralApi } from "@/lib/rate-limiter";
 import { loadProject, saveProject } from "@/lib/project-store";
 import { projectIdBodySchema } from "@/lib/schemas";
 import type { ContentAngle } from "@/types";
@@ -33,7 +37,26 @@ function sampleH2Themes(serpResults: { headings?: { h2?: string[] } }[], limit =
     .map(([text]) => text);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const authRes = await requireUserId();
+  if (authRes instanceof NextResponse) return authRes;
+  const { userId } = authRes;
+
+  const ip = getClientIp(request);
+  const rl = await limitGeneralApi(ip);
+  if (!rl.ok) {
+    return NextResponse.json(
+      {
+        error: "Too many requests. Please retry shortly.",
+        retryAfterSec: rl.retryAfterSec,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rl.retryAfterSec) },
+      },
+    );
+  }
+
   try {
     const json: unknown = await request.json();
     const parsed = projectIdBodySchema.safeParse(json);
@@ -42,7 +65,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const project = await loadProject(parsed.data.projectId);
+    const project = await loadProject(userId, parsed.data.projectId);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
@@ -75,7 +98,7 @@ export async function POST(request: Request) {
     }));
 
     const now = new Date().toISOString();
-    await saveProject({
+    await saveProject(userId, {
       ...project,
       recommendedAngles: angles,
       updatedAt: now,
@@ -88,7 +111,7 @@ export async function POST(request: Request) {
       recommended_angles: angles,
     });
   } catch (error: unknown) {
-    console.error("recommend-angles error", error);
+    logger.error({ err: error }, "recommend-angles error");
     return NextResponse.json(
       { error: "Could not generate recommendations" },
       { status: 500 },

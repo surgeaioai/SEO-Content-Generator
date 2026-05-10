@@ -1,5 +1,7 @@
 import Redis from "ioredis";
 
+import { logger } from "@/lib/logger";
+
 let redisClient: Redis | null | undefined;
 
 /**
@@ -25,17 +27,17 @@ export function getRedisClient(): Redis | null {
     });
 
     client.on("error", (error: unknown) => {
-      console.error("redis client error", error);
+      logger.error({ err: error }, "redis client error");
     });
 
     client.on("end", () => {
-      console.warn("redis connection ended");
+      logger.warn("redis connection ended");
     });
 
     redisClient = client;
     return redisClient;
   } catch (error: unknown) {
-    console.error("redis init failed", error);
+    logger.error({ err: error }, "redis init failed");
     redisClient = null;
     return redisClient;
   }
@@ -49,7 +51,7 @@ export async function closeRedisClient(): Promise<void> {
   try {
     await redisClient.quit();
   } catch (error: unknown) {
-    console.error("redis quit failed", error);
+    logger.error({ err: error }, "redis quit failed");
   } finally {
     redisClient = null;
   }
