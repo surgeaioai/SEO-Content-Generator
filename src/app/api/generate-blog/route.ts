@@ -20,7 +20,9 @@ export const maxDuration = 300;
 export async function POST(request: NextRequest) {
   let recoveryProjectId: string | null = null;
 
-  const authRes = await requireUserId();
+  const authRes = await requireUserId({
+    unauthorizedMessage: "Login karo pehle — blog generate karne ke liye",
+  });
   if (authRes instanceof NextResponse) return authRes;
   const { userId } = authRes;
 
@@ -168,7 +170,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const authRes = await requireUserId();
+  const authRes = await requireUserId({
+    unauthorizedMessage: "Login karo pehle — blog generate karne ke liye",
+  });
   if (authRes instanceof NextResponse) return authRes;
   const { userId } = authRes;
 

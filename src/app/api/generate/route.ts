@@ -15,7 +15,9 @@ import { processAiJob, type JobStatus } from "@/lib/workers/aiWorker";
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  const authRes = await requireUserId();
+  const authRes = await requireUserId({
+    unauthorizedMessage: "Login karo pehle — blog generate karne ke liye",
+  });
   if (authRes instanceof NextResponse) return authRes;
   const { userId } = authRes;
 
